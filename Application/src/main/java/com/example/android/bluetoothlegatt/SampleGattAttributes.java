@@ -26,17 +26,31 @@ public class SampleGattAttributes {
     public static String HEART_RATE_MEASUREMENT = "00002a37-0000-1000-8000-00805f9b34fb";
     public static String CLIENT_CHARACTERISTIC_CONFIG = "00002902-0000-1000-8000-00805f9b34fb";
 
+    public static String TRANSPARENT_UART_SERVICE = "49535343-fe7d-4ae5-8fa9-9fafd205e455";
+    public static String TRANSPARENT_UART_TX_CHARACTERISTIC = "49535343-1e4d-4bd9-ba61-23c647249616";
+    public static String TRANSPARENT_UART_RX_CHARACTERISTIC = "49535343-8841-43f4-a8d4-ecbe34729bb3";
+
     static {
         // Sample Services.
         attributes.put("0000180d-0000-1000-8000-00805f9b34fb", "Heart Rate Service");
         attributes.put("0000180a-0000-1000-8000-00805f9b34fb", "Device Information Service");
+
+        attributes.put(TRANSPARENT_UART_SERVICE, "Transparent UART Service");
         // Sample Characteristics.
         attributes.put(HEART_RATE_MEASUREMENT, "Heart Rate Measurement");
         attributes.put("00002a29-0000-1000-8000-00805f9b34fb", "Manufacturer Name String");
+        attributes.put(TRANSPARENT_UART_RX_CHARACTERISTIC, "Transparent UART RX");
+        attributes.put(TRANSPARENT_UART_TX_CHARACTERISTIC, "Transparent UART TX");
     }
 
     public static String lookup(String uuid, String defaultName) {
         String name = attributes.get(uuid);
         return name == null ? defaultName : name;
+    }
+
+    public static boolean isTransparentUARTService(String uuid) {
+        return uuid.compareToIgnoreCase(TRANSPARENT_UART_SERVICE)==0 ||
+                uuid.compareToIgnoreCase(TRANSPARENT_UART_RX_CHARACTERISTIC)==0 ||
+                uuid.compareToIgnoreCase(TRANSPARENT_UART_TX_CHARACTERISTIC)==0;
     }
 }

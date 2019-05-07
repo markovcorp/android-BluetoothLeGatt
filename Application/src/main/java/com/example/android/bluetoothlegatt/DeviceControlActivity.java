@@ -36,6 +36,7 @@ import android.widget.SimpleExpandableListAdapter;
 import android.widget.TextView;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 
@@ -61,6 +62,8 @@ public class DeviceControlActivity extends Activity {
             new ArrayList<ArrayList<BluetoothGattCharacteristic>>();
     private boolean mConnected = false;
     private BluetoothGattCharacteristic mNotifyCharacteristic;
+
+    private boolean mDoorUnlocked = false;
 
     private final String LIST_NAME = "NAME";
     private final String LIST_UUID = "UUID";
@@ -135,12 +138,45 @@ public class DeviceControlActivity extends Activity {
                                 mNotifyCharacteristic = null;
                             }
                             mBluetoothLeService.readCharacteristic(characteristic);
+                            byte[] charvalues = characteristic.getValue();
+                            if (charvalues!= null) {
+                                Log.d("BLE", "UUID is "+characteristic.getUuid().toString());
+                                Log.d("BLE", "Characteristic is "+ Arrays.toString(charvalues));
+                            }
                         }
                         if ((charaProp | BluetoothGattCharacteristic.PROPERTY_NOTIFY) > 0) {
                             mNotifyCharacteristic = characteristic;
                             mBluetoothLeService.setCharacteristicNotification(
-                                    characteristic, true);
+                                    mNotifyCharacteristic, true);
                         }
+                        if ((charaProp | BluetoothGattCharacteristic.PROPERTY_WRITE) > 0) {
+                            byte[] doorLock = new byte[] { (byte)0x4C, 0x4C, 0x4C };
+                            byte[] doorUnlock = new byte[] { (byte)0x55, 0x55, 0x55 };
+                            byte[] queryDoorState = new byte[] { (byte)0x51 };
+
+                            BluetoothGattCharacteristic doorCommandCharacteristic = characteristic;
+//                            doorCommandCharacteristic.setWriteType(BluetoothGattCharacteristic.PROPERTY_NOTIFY|
+//                                    BluetoothGattCharacteristic.PROPERTY_WRITE);
+                            //mBluetoothLeService.writeCharacteristic(doorCommandCharacteristic, queryDoorState);
+//                            try {
+//                                Thread.sleep(200);
+//                            } catch (InterruptedException ie) {
+//                            }
+                            if (mDoorUnlocked) {
+                                mBluetoothLeService.writeCharacteristic(doorCommandCharacteristic, doorLock);
+                                Log.d(DeviceControlActivity.TAG, "Sent out a door lock command.");
+                                mDoorUnlocked = false;
+                            }
+                            else {
+                                mBluetoothLeService.writeCharacteristic(doorCommandCharacteristic, doorUnlock);
+                                Log.d(DeviceControlActivity.TAG, "Sent out a door unlock command.");
+                                mDoorUnlocked = true;
+                            }
+
+                        }
+                        mNotifyCharacteristic = characteristic;
+                        mBluetoothLeService.setCharacteristicNotification(
+                                mNotifyCharacteristic, true);
                         return true;
                     }
                     return false;
@@ -238,6 +274,7 @@ public class DeviceControlActivity extends Activity {
     private void displayData(String data) {
         if (data != null) {
             mDataField.setText(data);
+            Log.d(TAG, "Received response: "+data);
         }
     }
 
@@ -275,8 +312,10 @@ public class DeviceControlActivity extends Activity {
                 charas.add(gattCharacteristic);
                 HashMap<String, String> currentCharaData = new HashMap<String, String>();
                 uuid = gattCharacteristic.getUuid().toString();
+                String lookupString = SampleGattAttributes.lookup(uuid, unknownCharaString);
                 currentCharaData.put(
-                        LIST_NAME, SampleGattAttributes.lookup(uuid, unknownCharaString));
+                        LIST_NAME, lookupString);
+
                 currentCharaData.put(LIST_UUID, uuid);
                 gattCharacteristicGroupData.add(currentCharaData);
             }
