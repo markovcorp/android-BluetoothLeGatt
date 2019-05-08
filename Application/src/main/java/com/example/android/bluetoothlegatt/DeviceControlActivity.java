@@ -26,6 +26,7 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.ServiceConnection;
 import android.os.Bundle;
+import android.os.Handler;
 import android.os.IBinder;
 import android.util.Log;
 import android.view.Menu;
@@ -62,6 +63,7 @@ public class DeviceControlActivity extends Activity {
             new ArrayList<ArrayList<BluetoothGattCharacteristic>>();
     private boolean mConnected = false;
     private BluetoothGattCharacteristic mNotifyCharacteristic;
+    private Handler mHandler = new Handler();
 
     private boolean mDoorUnlocked = false;
 
@@ -132,11 +134,6 @@ public class DeviceControlActivity extends Activity {
                         if ((charaProp | BluetoothGattCharacteristic.PROPERTY_READ) > 0) {
                             // If there is an active notification on a characteristic, clear
                             // it first so it doesn't update the data field on the user interface.
-                            if (mNotifyCharacteristic != null) {
-                                mBluetoothLeService.setCharacteristicNotification(
-                                        mNotifyCharacteristic, false);
-                                mNotifyCharacteristic = null;
-                            }
                             mBluetoothLeService.readCharacteristic(characteristic);
                             byte[] charvalues = characteristic.getValue();
                             if (charvalues!= null) {
@@ -150,33 +147,41 @@ public class DeviceControlActivity extends Activity {
                                     mNotifyCharacteristic, true);
                         }
                         if ((charaProp | BluetoothGattCharacteristic.PROPERTY_WRITE) > 0) {
-                            byte[] doorLock = new byte[] { (byte)0x4C, 0x4C, 0x4C };
-                            byte[] doorUnlock = new byte[] { (byte)0x55, 0x55, 0x55 };
+
                             byte[] queryDoorState = new byte[] { (byte)0x51 };
+                            byte[] doorLock = new byte[] { (byte)0x4C };
+                            byte[] doorUnlock = new byte[] { (byte)0x55 };
 
                             BluetoothGattCharacteristic doorCommandCharacteristic = characteristic;
-//                            doorCommandCharacteristic.setWriteType(BluetoothGattCharacteristic.PROPERTY_NOTIFY|
-//                                    BluetoothGattCharacteristic.PROPERTY_WRITE);
-                            //mBluetoothLeService.writeCharacteristic(doorCommandCharacteristic, queryDoorState);
-//                            try {
-//                                Thread.sleep(200);
-//                            } catch (InterruptedException ie) {
-//                            }
-                            if (mDoorUnlocked) {
-                                mBluetoothLeService.writeCharacteristic(doorCommandCharacteristic, doorLock);
-                                Log.d(DeviceControlActivity.TAG, "Sent out a door lock command.");
-                                mDoorUnlocked = false;
-                            }
-                            else {
-                                mBluetoothLeService.writeCharacteristic(doorCommandCharacteristic, doorUnlock);
-                                Log.d(DeviceControlActivity.TAG, "Sent out a door unlock command.");
-                                mDoorUnlocked = true;
-                            }
+                            if(SampleGattAttributes.isTransparentUARTService(characteristic.getUuid().toString())) {
+                                if(mDoorUnlocked) {
+                                    mBluetoothLeService.writeCharacteristic(doorCommandCharacteristic, doorLock);
+                                }
+                                else {
+                                    mBluetoothLeService.writeCharacteristic(doorCommandCharacteristic, doorUnlock);
+                                }
+                                //mBluetoothLeService.writeCharacteristic(doorCommandCharacteristic, queryDoorState);
+                                mHandler.postDelayed(new Runnable() {
+                                    @Override
+                                    public void run() {
+                                        BluetoothGattCharacteristic doorCommandCharacteristic = characteristic;
+                                        byte[] doorLock = new byte[] { (byte)0x4C };
+                                        byte[] doorUnlock = new byte[] { (byte)0x55 };
 
+                                        if (mDoorUnlocked) {
+                                            mBluetoothLeService.writeCharacteristic(doorCommandCharacteristic, doorLock);
+                                            Log.d(DeviceControlActivity.TAG, "Sent out a door lock command.");
+                                            mDoorUnlocked = false;
+                                        } else {
+                                            mBluetoothLeService.writeCharacteristic(doorCommandCharacteristic, doorUnlock);
+                                            Log.d(DeviceControlActivity.TAG, "Sent out a door unlock command.");
+                                            mDoorUnlocked = true;
+                                        }
+                                    }
+                                }, 1200);
+                            }
                         }
-                        mNotifyCharacteristic = characteristic;
-                        mBluetoothLeService.setCharacteristicNotification(
-                                mNotifyCharacteristic, true);
+
                         return true;
                     }
                     return false;
