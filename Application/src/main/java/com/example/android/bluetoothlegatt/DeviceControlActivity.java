@@ -31,6 +31,7 @@ import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
+import android.view.View.OnClickListener;
 import android.widget.ExpandableListView;
 import android.widget.SimpleExpandableListAdapter;
 import android.widget.TextView;
@@ -52,6 +53,8 @@ public class DeviceControlActivity extends Activity {
     public static final String EXTRAS_DEVICE_NAME = "DEVICE_NAME";
     public static final String EXTRAS_DEVICE_ADDRESS = "DEVICE_ADDRESS";
 
+    public static final String DEVICE_UUID = "49535343-1e4d-4bd9-ba61-23c647249616";
+
     private TextView mConnectionState;
     private TextView mDataField;
     private String mDeviceName;
@@ -59,11 +62,11 @@ public class DeviceControlActivity extends Activity {
     private ExpandableListView mGattServicesList;
     private BluetoothLeService mBluetoothLeService;
     private ArrayList<ArrayList<BluetoothGattCharacteristic>> mGattCharacteristics =
-            new ArrayList<ArrayList<BluetoothGattCharacteristic>>();
+        new ArrayList<>();
     private boolean mConnected = false;
     private BluetoothGattCharacteristic mNotifyCharacteristic;
 
-    private boolean mDoorUnlocked = false;
+    BluetoothGattCharacteristic mDoorGatt;
 
     private final String LIST_NAME = "NAME";
     private final String LIST_UUID = "UUID";
@@ -129,32 +132,38 @@ public class DeviceControlActivity extends Activity {
                         final BluetoothGattCharacteristic characteristic =
                                 mGattCharacteristics.get(groupPosition).get(childPosition);
                         final int charaProp = characteristic.getProperties();
+                        Log.d(TAG, "BBB charaProp = " + charaProp + " " + (charaProp | BluetoothGattCharacteristic.PROPERTY_READ));
+                        Log.d(TAG, "BBB charaProp and write = " + (charaProp | BluetoothGattCharacteristic.PROPERTY_WRITE));
+                        Log.d(TAG, "BBB charaProp and notify = " + (charaProp | BluetoothGattCharacteristic.PROPERTY_NOTIFY));
+
                         if ((charaProp | BluetoothGattCharacteristic.PROPERTY_READ) > 0) {
                             // If there is an active notification on a characteristic, clear
                             // it first so it doesn't update the data field on the user interface.
+                            Log.d(TAG, "BBB mNotifyCharacteristic = " + mNotifyCharacteristic);
                             if (mNotifyCharacteristic != null) {
                                 mBluetoothLeService.setCharacteristicNotification(
-                                        mNotifyCharacteristic, false);
+                                        mNotifyCharacteristic, true);
                                 mNotifyCharacteristic = null;
                             }
                             mBluetoothLeService.readCharacteristic(characteristic);
                             byte[] charvalues = characteristic.getValue();
                             if (charvalues!= null) {
-                                Log.d("BLE", "UUID is "+characteristic.getUuid().toString());
-                                Log.d("BLE", "Characteristic is "+ Arrays.toString(charvalues));
+                                Log.d("BLE", "BBBB UUID is "+characteristic.getUuid().toString());
+                                Log.d("BLE", "BBB Characteristic is "+ Arrays.toString(charvalues));
                             }
                         }
                         if ((charaProp | BluetoothGattCharacteristic.PROPERTY_NOTIFY) > 0) {
+                            Log.d(TAG, "BBB setting 1 mBluetoothLeService = ");
                             mNotifyCharacteristic = characteristic;
                             mBluetoothLeService.setCharacteristicNotification(
                                     mNotifyCharacteristic, true);
                         }
                         if ((charaProp | BluetoothGattCharacteristic.PROPERTY_WRITE) > 0) {
-                            byte[] doorLock = new byte[] { (byte)0x4C, 0x4C, 0x4C };
-                            byte[] doorUnlock = new byte[] { (byte)0x55, 0x55, 0x55 };
+                            Log.d(TAG, "BBB setting 2 mBluetoothLeService = ");
                             byte[] queryDoorState = new byte[] { (byte)0x51 };
+                            mNotifyCharacteristic = characteristic;
 
-                            BluetoothGattCharacteristic doorCommandCharacteristic = characteristic;
+                            mDoorGatt = characteristic;
 //                            doorCommandCharacteristic.setWriteType(BluetoothGattCharacteristic.PROPERTY_NOTIFY|
 //                                    BluetoothGattCharacteristic.PROPERTY_WRITE);
                             //mBluetoothLeService.writeCharacteristic(doorCommandCharacteristic, queryDoorState);
@@ -162,17 +171,6 @@ public class DeviceControlActivity extends Activity {
 //                                Thread.sleep(200);
 //                            } catch (InterruptedException ie) {
 //                            }
-                            if (mDoorUnlocked) {
-                                mBluetoothLeService.writeCharacteristic(doorCommandCharacteristic, doorLock);
-                                Log.d(DeviceControlActivity.TAG, "Sent out a door lock command.");
-                                mDoorUnlocked = false;
-                            }
-                            else {
-                                mBluetoothLeService.writeCharacteristic(doorCommandCharacteristic, doorUnlock);
-                                Log.d(DeviceControlActivity.TAG, "Sent out a door unlock command.");
-                                mDoorUnlocked = true;
-                            }
-
                         }
                         mNotifyCharacteristic = characteristic;
                         mBluetoothLeService.setCharacteristicNotification(
@@ -208,6 +206,32 @@ public class DeviceControlActivity extends Activity {
         getActionBar().setDisplayHomeAsUpEnabled(true);
         Intent gattServiceIntent = new Intent(this, BluetoothLeService.class);
         bindService(gattServiceIntent, mServiceConnection, BIND_AUTO_CREATE);
+
+        findViewById(R.id.lockButton).setOnClickListener(new OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                if (mDoorGatt != null) {
+                    byte[] doorLock = new byte[] { (byte)0x4C, 0x4C, 0x4C };
+                    mBluetoothLeService.writeCharacteristic(mDoorGatt, doorLock);
+                    Log.d(TAG, "BBBB Sending LOCK command");
+                } else {
+                    Log.d(TAG, "BBB in lock door gatt characteristic is not available.");
+                }
+            }
+        });
+
+        findViewById(R.id.unlockButton).setOnClickListener(new OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                byte[] doorUnlock = new byte[] { (byte)0x55, 0x55, 0x55 };
+                if (mDoorGatt != null) {
+                    mBluetoothLeService.writeCharacteristic(mDoorGatt, doorUnlock);
+                    Log.d(TAG, "BBBB Sending UNLOCK command");
+                } else {
+                    Log.d(TAG, "BBB in unlock door gatt characteristic is not available.");
+                }
+            }
+        });
     }
 
     @Override
@@ -287,9 +311,8 @@ public class DeviceControlActivity extends Activity {
         String unknownServiceString = getResources().getString(R.string.unknown_service);
         String unknownCharaString = getResources().getString(R.string.unknown_characteristic);
         ArrayList<HashMap<String, String>> gattServiceData = new ArrayList<HashMap<String, String>>();
-        ArrayList<ArrayList<HashMap<String, String>>> gattCharacteristicData
-                = new ArrayList<ArrayList<HashMap<String, String>>>();
-        mGattCharacteristics = new ArrayList<ArrayList<BluetoothGattCharacteristic>>();
+        ArrayList<ArrayList<HashMap<String, String>>> gattCharacteristicData = new ArrayList<>();
+        mGattCharacteristics = new ArrayList<>();
 
         // Loops through available GATT Services.
         for (BluetoothGattService gattService : gattServices) {
@@ -300,23 +323,24 @@ public class DeviceControlActivity extends Activity {
             currentServiceData.put(LIST_UUID, uuid);
             gattServiceData.add(currentServiceData);
 
-            ArrayList<HashMap<String, String>> gattCharacteristicGroupData =
-                    new ArrayList<HashMap<String, String>>();
+            ArrayList<HashMap<String, String>> gattCharacteristicGroupData = new ArrayList<>();
             List<BluetoothGattCharacteristic> gattCharacteristics =
                     gattService.getCharacteristics();
-            ArrayList<BluetoothGattCharacteristic> charas =
-                    new ArrayList<BluetoothGattCharacteristic>();
+            ArrayList<BluetoothGattCharacteristic> charas = new ArrayList<>();
 
             // Loops through available Characteristics.
             for (BluetoothGattCharacteristic gattCharacteristic : gattCharacteristics) {
                 charas.add(gattCharacteristic);
-                HashMap<String, String> currentCharaData = new HashMap<String, String>();
+                HashMap<String, String> currentCharaData = new HashMap<>();
                 uuid = gattCharacteristic.getUuid().toString();
                 String lookupString = SampleGattAttributes.lookup(uuid, unknownCharaString);
                 currentCharaData.put(
                         LIST_NAME, lookupString);
 
                 currentCharaData.put(LIST_UUID, uuid);
+                if (uuid.equals(DEVICE_UUID)) {
+                    mDoorGatt = gattCharacteristic;
+                }
                 gattCharacteristicGroupData.add(currentCharaData);
             }
             mGattCharacteristics.add(charas);

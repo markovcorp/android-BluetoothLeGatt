@@ -34,4 +34,7 @@
     <string name="menu_scan">Scan</string>
     <string name="menu_stop">Stop</string>
     <string name="menu_flash">Flash Lights</string>
+
+    <string name="lock">Lock</string>
+    <string name="unlock">unlock</string>
 </resources>
