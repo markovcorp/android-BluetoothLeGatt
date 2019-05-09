@@ -36,5 +36,6 @@
     <string name="menu_flash">Flash Lights</string>
 
     <string name="lock">Lock</string>
+    <string name="query">Query</string>
     <string name="unlock">unlock</string>
 </resources>
